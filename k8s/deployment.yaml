@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: pbl3-demo-app
-          image: ajhay07/pbl3-demo-app:latest
+          image: ajhay07/pbl3-demo-app:1
           ports:
             - containerPort: 5000
           resources:
