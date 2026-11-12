@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pbl3-demo-app-blue-internal
+spec:
+  type: ClusterIP
+  selector:
+    app: pbl3-demo-app
+    version: blue
+  ports:
+    - port: 80
+      targetPort: 5000

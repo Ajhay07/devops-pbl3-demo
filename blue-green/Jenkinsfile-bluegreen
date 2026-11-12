@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+        IMAGE_NAME = "ajhay07/pbl3-demo-app"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        SERVICE_NAME = "pbl3-demo-service-bg"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Ajhay07/devops-pbl3-demo.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
+            }
+        }
+
+        stage('Determine Active Color') {
+            steps {
+                script {
+                    env.ACTIVE_COLOR = sh(
+                        script: "kubectl get service $SERVICE_NAME -o jsonpath='{.spec.selector.version}'",
+                        returnStdout: true
+                    ).trim()
+                    env.IDLE_COLOR = (env.ACTIVE_COLOR == 'blue') ? 'green' : 'blue'
+                    echo "Active color: ${env.ACTIVE_COLOR} | Deploying to idle color: ${env.IDLE_COLOR}"
+                }
+            }
+        }
+
+        stage('Deploy to Idle Color') {
+            steps {
+                sh "kubectl set image deployment/pbl3-demo-${env.IDLE_COLOR} pbl3-demo-app=$IMAGE_NAME:$IMAGE_TAG"
+                sh "kubectl rollout status deployment/pbl3-demo-${env.IDLE_COLOR} --timeout=120s"
+            }
+        }
+
+        stage('Smoke Test Idle Color') {
+            steps {
+                script {
+                    sh """
+                        kubectl run smoke-test-${env.IDLE_COLOR}-${BUILD_NUMBER} --rm -i --restart=Never --image=busybox:1.36 -- \
+                        wget -q -O- http://pbl3-demo-app-${env.IDLE_COLOR}-internal/health
+                    """
+                }
+            }
+        }
+
+        stage('Switch Traffic to Idle Color') {
+            steps {
+                sh "kubectl patch service $SERVICE_NAME -p '{\"spec\":{\"selector\":{\"app\":\"pbl3-demo-app\",\"version\":\"${env.IDLE_COLOR}\"}}}'"
+                echo "Traffic switched to ${env.IDLE_COLOR}. Previous color (${env.ACTIVE_COLOR}) remains up for rollback."
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker logout'
+        }
+        success {
+            echo "Blue-Green deployment completed. Live color: ${env.IDLE_COLOR}"
+        }
+        failure {
+            echo 'Pipeline failed. Traffic was NOT switched; previous color remains live.'
+        }
+    }
+}
