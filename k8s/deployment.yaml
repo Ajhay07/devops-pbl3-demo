@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pbl3-demo-app
+  labels:
+    app: pbl3-demo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pbl3-demo-app
+  template:
+    metadata:
+      labels:
+        app: pbl3-demo-app
+    spec:
+      containers:
+        - name: pbl3-demo-app
+          image: ajhay07/pbl3-demo-app:latest
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
