@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+        IMAGE_NAME = "ajhay07/pbl3-demo-app"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Ajhay07/devops-pbl3-demo.git'
+            }
+        }
+
+        stage('SAST - Bandit Code Scan') {
+            steps {
+                sh '''
+                    pip install --user --quiet bandit || true
+                    export PATH=$PATH:$HOME/.local/bin
+                    bandit -r . -f txt -o bandit-report.txt --exit-zero
+                    echo "---- Bandit Report ----"
+                    cat bandit-report.txt
+                '''
+            }
+        }
+
+        stage('Dependency Scan - pip-audit') {
+            steps {
+                sh '''
+                    pip install --user --quiet pip-audit || true
+                    export PATH=$PATH:$HOME/.local/bin
+                    pip-audit -r requirements.txt -f columns || true
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+            }
+        }
+
+        stage('Container Image Scan - Trivy') {
+            steps {
+                sh '''
+                    export PATH=$PATH:$HOME/bin
+                    trivy image --severity HIGH,CRITICAL --exit-code 0 --format table $IMAGE_NAME:$IMAGE_TAG | tee trivy-report.txt
+                '''
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh 'kubectl set image deployment/pbl3-demo-app pbl3-demo-app=$IMAGE_NAME:$IMAGE_TAG --record'
+                sh 'kubectl rollout status deployment/pbl3-demo-app --timeout=120s'
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker logout'
+            archiveArtifacts artifacts: 'bandit-report.txt, trivy-report.txt', allowEmptyArchive: true
+        }
+        success {
+            echo 'DevSecOps pipeline completed successfully! Scan reports archived.'
+        }
+        failure {
+            echo 'Pipeline failed. Check SAST/dependency/image scan stages above.'
+        }
+    }
+}
