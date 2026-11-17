@@ -46,7 +46,7 @@ pipeline {
             steps {
                 sh '''
                     export PATH=$PATH:$HOME/bin
-                    trivy image --severity HIGH,CRITICAL --exit-code 0 --format table $IMAGE_NAME:$IMAGE_TAG | tee trivy-report.txt
+                    trivy image --severity CRITICAL --exit-code 1 --format table $IMAGE_NAME:$IMAGE_TAG | tee trivy-report.txt
                 '''
             }
         }
