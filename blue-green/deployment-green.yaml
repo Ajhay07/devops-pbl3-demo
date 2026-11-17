@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: pbl3-demo-app
-          image: ajhay07/pbl3-demo-app:2
+          image: ajhay07/pbl3-demo-app:3
           env:
             - name: APP_VERSION
               value: "green"
