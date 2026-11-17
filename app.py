@@ -32,5 +32,12 @@ def home():
 def health():
     return jsonify({"status": "healthy"}), 200
 
+@app.route("/patients")
+def patients():
+    return jsonify([
+        {"id": 1, "name": "Test Patient A", "condition": "Hypertension"},
+        {"id": 2, "name": "Test Patient B", "condition": "Diabetes"}
+    ])
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
